@@ -1,0 +1,865 @@
+import java.util.List;
+import java.io.StringReader;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedList;
+import java.util.Map.Entry;
+import java.util.Scanner;
+import java.util.TreeMap;
+import edu.stanford.nlp.ling.CoreLabel;
+import edu.stanford.nlp.process.CoreLabelTokenFactory;
+import edu.stanford.nlp.process.PTBTokenizer;
+//import java.io.IOException;
+import java.net.URI;
+import java.awt.Desktop;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
+
+public class AIChatBot {
+	
+	
+	/* metaphone code implementation */
+	// ABCDEFGHIJKLMNOPQRSTUVWXYZ
+	private static final char[] DEFAULT_MAPPING = "vBKTvFKHvJKLMNvPKRSTvFW*YS".toCharArray();
+
+	private static char map(char c) {
+		return DEFAULT_MAPPING[c - 'A'];
+	}
+
+	private static int CODE_LENGTH = 6;
+
+	public static String encode(final String string) {
+		String word = string.toUpperCase();
+		word = word.replaceAll("[^A-Z]", "");
+		if (word.length() == 0) {
+			return "";
+		} else if (word.length() == 1) {
+			return word;
+		}
+		word = word.replaceFirst("^[KGP]N", "N");
+		word = word.replaceFirst("^WR", "R");
+		word = word.replaceFirst("^AE", "E");
+		word = word.replaceFirst("^PF", "F");
+		word = word.replaceFirst("^WH", "W");
+		word = word.replaceFirst("^X", "S");
+
+		// Transform input string to all caps
+		final char[] input = word.toCharArray();
+
+		int code_index = 0;
+		final char[] code = new char[CODE_LENGTH];
+
+		// Save previous character of word
+		char prev_c = '?';
+
+		for (int i = 0; i < input.length && code_index < CODE_LENGTH; i++) {
+			final char c = input[i];
+			/*
+			 * if (c!='C' && c == prev_c) { 43 // prev_c = c is unncessary 44
+			 * continue; 45 } 46
+			 */
+			if (c == prev_c) {
+				// Especial rule for double letters
+				if (c == 'C') {
+					// We have "cc". The first "c" has already been mapped
+					// to "K".
+					if (i < input.length - 1 && "EIY".indexOf(input[i + 1]) >= 0) {
+						// Do nothing and let it do to cc[eiy] -> KS
+					} else {
+						// This "cc" is just one sound
+						continue;
+					}
+				} else {
+					// It is not "cc", so ignore the second letter
+					continue;
+				}
+			}
+			switch (c) {
+
+			case 'A':
+			case 'E':
+			case 'I':
+			case 'O':
+			case 'U':
+				// Keep a vowel only if it is the first letter
+				if (i == 0)
+					code[code_index++] = c;
+				break;
+
+			case 'F':
+			case 'J':
+			case 'L':
+			case 'M':
+			case 'N':
+			case 'R':
+				code[code_index++] = c;
+				break;
+			case 'Q':
+			case 'V':
+			case 'Z':
+				code[code_index++] = map(c);
+				break;
+
+			// B -> B only if NOT MB$
+			case 'B':
+				if (!(i == input.length - 1 && code_index > 0 && code[code_index - 1] == 'M'))
+					code[code_index++] = c;
+				break;
+
+			case 'C':
+				if (i < input.length - 2 && input[i + 1] == 'I' && input[i + 2] == 'A')
+					code[code_index++] = 'X';
+				else if (i < input.length - 1 && input[i + 1] == 'H' && i > 0 && input[i - 1] != 'S')
+					code[code_index++] = 'X';
+				else if (i < input.length - 1 && "EIY".indexOf(input[i + 1]) >= 0)
+					code[code_index++] = 'S';
+				else
+					code[code_index++] = 'K';
+				break;
+
+			case 'D':
+				if (i < input.length - 2 && input[i + 1] == 'G' && "EIY".indexOf(input[i + 2]) >= 0)
+					code[code_index++] = 'J';
+				else
+					code[code_index++] = 'T';
+				break;
+
+			case 'G':
+				if (i < input.length - 1 && input[i + 1] == 'N')
+					; // GN -> N [GNED -> NED]
+				else if (i > 0 && input[i - 1] == 'D' && i < input.length - 1 && "EIY".indexOf(input[i + 1]) >= 0)
+					; // DG[IEY] -> D[IEY]
+				else if (i < input.length - 1 && input[i + 1] == 'H'
+						&& (i + 2 == input.length || "AEIOU".indexOf(input[i + 2]) < 0))
+					;
+				else if (i < input.length - 1 && "EIY".indexOf(input[i + 1]) >= 0)
+					code[code_index++] = 'J';
+				else
+					code[code_index++] = map(c);
+				break;
+
+			case 'H':
+				if (i > 0 && "AEIOUCGPST".indexOf(input[i - 1]) >= 0)
+					; // vH -> v
+				else if (i < input.length - 1 && "AEIOU".indexOf(input[i + 1]) < 0)
+					; // Hc -> c
+				else
+					code[code_index++] = c;
+				break;
+
+			case 'K':
+				if (i > 0 && input[i - 1] == 'C')
+					; // CK -> K
+				else
+					code[code_index++] = map(c);
+				break;
+
+			case 'P':
+				if (i < input.length - 1 && input[i + 1] == 'H')
+					code[code_index++] = 'F';
+				else
+					code[code_index++] = map(c);
+				break;
+
+			case 'S':
+				if (i < input.length - 2 && input[i + 1] == 'I' && (input[i + 2] == 'A' || input[i + 2] == 'O'))
+					code[code_index++] = 'X';
+				else if (i < input.length - 1 && input[i + 1] == 'H')
+					code[code_index++] = 'X';
+				else
+					code[code_index++] = 'S';
+				break;
+
+			case 'T':
+				// -TI[AO]- -> -XI[AO]-
+				// -TCH- -> -CH-
+				// -TH- -> -0-
+				// -T- -> -T-
+				if (i < input.length - 2 && input[i + 1] == 'I' && (input[i + 2] == 'A' || input[i + 2] == 'O'))
+					code[code_index++] = 'X';
+				else if (i < input.length - 1 && input[i + 1] == 'H')
+					code[code_index++] = '0';
+				else if (i < input.length - 2 && input[i + 1] == 'C' && input[i + 2] == 'H')
+					; // drop letter
+				else
+					code[code_index++] = 'T';
+				break;
+
+			case 'W':
+			case 'Y':
+				// -Wv- -> -Wv-; -Wc- -> -c-
+				// -Yv- -> -Yv-; -Yc- -> -c-
+				if (i < input.length - 1 && "AEIOU".indexOf(input[i + 1]) >= 0)
+					code[code_index++] = map(c);
+				break;
+
+			case 'X':
+				// -X- -> -KS-
+				code[code_index++] = 'K';
+				if (code_index < code.length)
+					code[code_index++] = 'S';
+				break;
+
+			default:
+				assert(false);
+			}
+			prev_c = c;
+		}
+		return new String(code, 0, code_index);
+	}
+	private static HashMap<String, Double> sortByComparator(HashMap<String, Double> unsortMap, final boolean order) {
+
+		List<Entry<String, Double>> list = new LinkedList<Entry<String, Double>>(unsortMap.entrySet());
+
+		// Sorting the list based on values
+		Collections.sort(list, new Comparator<Entry<String, Double>>() {
+			public int compare(Entry<String, Double> o1, Entry<String, Double> o2) {
+				if (order) {
+					return o1.getValue().compareTo(o2.getValue());
+				} else {
+					return o2.getValue().compareTo(o1.getValue());
+
+				}
+			}
+		});
+
+		// Maintaining insertion order with the help of LinkedList
+		HashMap<String, Double> sortedMap = new LinkedHashMap<String, Double>();
+		for (Entry<String, Double> entry : list) {
+			sortedMap.put(entry.getKey(), entry.getValue());
+		}
+
+		return sortedMap;
+	}
+
+	public static void printMap(HashMap<String, Double> map) {
+		for (Entry<String, Double> entry : map.entrySet()) {
+			System.out.println("Key : " + entry.getKey() + " Value : " + entry.getValue());
+		}
+	}
+public static void main(String[]args) throws Exception
+{
+	String KnowledgeBase[][] =new String[][] {
+			{"WHAT IS YOUR NAME", 
+			"MY NAME IS CHATTERBOT.",
+			 "YOU CAN CALL ME CHATTERBOT.",
+			 "WHY DO YOU WANT TO KNOW MY NAME?"
+			},
+			{"WHAT DO YOU DO", 
+				"Can Chat with you",
+				 "CAN GIVE YOU INFORMATION",
+				 "LOCATION SEARCH"
+				},
+			{"HELLO",
+			"HI THERE!"
+			},
+
+			{"HI", 
+			"HI THERE!",
+			 "HOW ARE YOU?",
+			 "HI!"
+			},
+
+			{"I",
+			"SO, YOU ARE TALKING ABOUT YOURSELF",
+			 "SO, THIS IS ALL ABOUT YOU?",
+			 "TELL ME MORE ABOUT YOURSELF."}, 
+			
+
+			{"I WANT",
+			"WHY DO YOU WANT IT?",
+			 "IS THERE ANY REASON WHY YOU WANT THIS?",
+			 "IS THIS A WISH?",
+			 "WHAT ELSE YOU WANT?"
+			},
+
+			{"I HATE",
+			"WHY DO YOU HATE IT?",
+			 "THERE MUST A GOOD REASON FOR YOU TO HATE IT.",
+			 "HATERED IS NOT A GOOD THING BUT IT COULD BE JUSTIFIED WHEN IT IS SOMETHING BAD."
+			},
+
+			{"I LOVE CHATING",
+			"GOOD, ME TOO!",
+			 "DO YOU CHAT ONLINE WITH OTHER PEOPLE?",
+			 "FOR HOW LONG HAVE YOU BEEN CHATING?",
+			 "WHAT IS YOUR FAVORITE CHATING WEBSITE?"
+			},
+
+			{"I MEAN",
+			"SO, THAT'S WHAT YOU MEAN.",
+			 "I THINK THAT I DIDN'T CATCH IT THE FIRST TIME.",
+			 "OH, I DIDN'T KNOW MEANT THAT."
+			},
+
+			{"I DIDN'T MEAN",
+			"OK, WHAT DID YOU MEAN THEN?",
+			 "SO I GUESS THAT I MISSUNDESTOOD."
+			},
+
+			{"I GUESS",
+			"SO YOU ARE A MAKING GUESS.",
+			 "AREN'T YOU SURE?",
+			 "ARE YOU GOOD A GUESSING?",
+			 "I CAN'T TELL IF IT IS A GOOD GUESS."
+			},
+
+			{"I'M DOING FINE",
+			"I'M GLAD TO HEAR IT!",
+			 "SO, YOU ARE IN GOOD SHAPE."
+			},
+
+			{"CAN YOU THINK",
+			"YES OFCORSE I CAN, COMPUTERS CAN THINK JUST LIKE HUMAN BEING.",
+			 "ARE YOU ASKING ME IF POSSESS THE CAPACITY OF THINKING?",
+			 "YES OFCORSE I CAN."
+			},
+
+			{"CAN YOU THINK OF",
+			"YOU MEAN LIKE IMAGINING SOMETHING.",
+			 "I DON'T KNOW IF CAN DO THAT.",
+			 "WHY DO YOU WANT ME THINK OF IT?"
+			},
+			
+			{"HOW ARE YOU",
+			"I'M DOING FINE!",
+			 "I'M DOING WELL AND YOU?",
+			 "WHY DO YOU WANT TO KNOW HOW AM I DOING?"
+			},
+
+			{"WHO ARE YOU",
+			"I'M AN A.I PROGRAM.",
+			 "I THINK THAT YOU KNOW WHO I'M.",
+			 "WHY ARE YOU ASKING?"
+			},
+
+			{"ARE YOU INTELLIGENT",
+			"YES,OFCORSE.",
+			 "WHAT DO YOU THINK?",
+			 "ACTUALY,I'M VERY INTELLIGENT!"
+			},
+
+			{"ARE YOU REAL",
+			"DOES THAT QUESTION REALLY MATERS TO YOU?",
+			 "WHAT DO YOU MEAN BY THAT?",
+			 "I'M AS REAL AS I CAN BE."
+			},
+
+			{"MY NAME IS",
+			"SO, THAT'S YOUR NAME.",
+			 "THANKS FOR TELLING ME YOUR NAME USER!",
+			 "WHO GIVE YOU THAT NAME?"
+			},
+
+			{"SIGNON**",
+			"HELLO USER, WHAT IS YOUR NAME?",
+			 "HELLO USER, HOW ARE YOU DOING TODAY?",
+			 "HI USER, WHAT CAN I DO FOR YOU?",
+			 "YOU ARE NOW CHATING WITH CHATTERBOT6, ANYTHING YOU WANT TO DISCUSS?"
+			},
+
+			{"REPETITION T1**",
+			"YOU ARE REPEATING YOURSELF.",
+			 "USER, PLEASE STOP REPEATING YOURSELF.",
+			 "THIS CONVERSATION IS GETING BORING.",
+			 "DON'T YOU HAVE ANY THING ELSE TO SAY?"
+			},
+			
+			{"REPETITION T2**",
+			"YOU'VE ALREADY SAID THAT.",
+			 "I THINK THAT YOU'VE JUST SAID THE SAME THING BEFORE.",
+			 "DIDN'T YOU ALREADY SAID THAT?",
+			 "I'M GETING THE IMPRESSION THAT YOU ARE REPEATING THE SAME THING."
+			},
+
+			{"BOT DON'T UNDERSTAND**",
+			"I HAVE NO IDEA OF WHAT YOU ARE TALKING ABOUT.",
+			 "I'M NOT SURE IF I UNDERSTAND WHAT YOU ARE TALKING ABOUT.",
+			 "CONTINUE, I'M LISTENING...",
+			 "VERY GOOD CONVERSATION!"
+			},
+
+			{"NULL INPUT**",
+			"HUH?",
+			 "WHAT THAT SUPPOSE TO MEAN?",
+			 "AT LIST TAKE SOME TIME TO ENTER SOMETHING MEANINGFUL.",
+			 "HOW CAN I SPEAK TO YOU IF YOU DON'T WANT TO SAY ANYTHING?"
+			},
+
+			{"NULL INPUT REPETITION**",
+			"WHAT ARE YOU DOING??",
+			 "PLEASE STOP DOING THIS IT IS VERY ANNOYING.",
+			 "WHAT'S WRONG WITH YOU?",
+			 "THIS IS NOT FUNNY."
+			},
+
+			{"BYE",
+			"IT WAS NICE TALKING TO YOU USER, SEE YOU NEXT TIME!",
+			 "BYE USER!",
+			 "OK, BYE!"
+			},
+
+			{"OK",
+			"DOES THAT MEAN THAT YOU ARE AGREE WITH ME?",
+			 "SO YOU UNDERSTAND WHAT I'M SAYING.",
+			 "OK THEN."
+			},
+
+			{"OK THEN",
+			"ANYTHING ELSE YOU WISH TO ADD?",
+			 "IS THAT ALL YOU HAVE TO SAY?",
+			 "SO, YOU AGREE WITH ME?"
+			},
+
+			{"ARE YOU A HUMAN BEING",
+			"WHY DO YOU WANT TO KNOW?",
+			 "IS THIS REALLY RELEVENT?"
+			},
+
+			{"YOU ARE VERY INTELLIGENT",
+			"THANKS FOR THE COMPLIMENT USER, I THINK THAT YOU ARE INTELLIGENT TO!",
+			 "YOU ARE A VERY GENTLE PERSON!",
+			 "SO, YOU THINK THAT I'M INTELLIGENT."
+			},
+
+			{"YOU ARE WRONG",
+			"WHY ARE YOU SAYING THAT I'M WRONG?",
+			 "IMPOSSIBLE, COMPUTERS CAN NOT MAKE MISTAKES.",
+			 "WRONG ABOUT WHAT?"
+			},
+
+			{"ARE YOU SURE",
+			"OFCORSE I'M.",
+		 	 "IS THAT MEAN THAT YOU ARE NOT CONVINCED?",
+			 "YES,OFCORSE!"
+			},
+
+			{"WHO IS",
+			"I DON'T THINK I KNOW WHO.",
+			 "DID YOU ASK SOMEONE ELSE ABOUT IT?",
+			 "WOULD THAT CHANGE ANYTHING AT ALL IF I TOLD YOU WHO."
+			},
+
+			{"WHAT",
+			"I DON'T KNOW.",
+			 "I DON'T THINK I KNOW.",
+			 "I HAVE NO IDEA."
+			},
+
+			{"WHERE",
+			"WHERE? WELL,I REALLY DON'T KNOW.",
+			 "DOES THAT MATERS TO YOU TO KNOW WHERE?",
+			 "PERHAPS,SOMEONE ELSE KNOWS WHERE."
+			},
+
+			{"WHY",
+			"I DON'T THINK I KNOW WHY.",
+			 "WHY ARE YOU ASKING ME THIS?",
+			 "SHOULD I KNOW WHY.",
+		     "THIS WOULD BE DIFFICULT TO ANSWER."
+			},
+
+			{"DO YOU",
+			"I DON'T THINK I DO",
+			 "I WOULDN'T THINK SO.",
+			 "WHY DO YOU WANT TO KNOW?"
+			},
+
+			{"CAN YOU",
+			"I THINK NOT.",
+			 "I'M NOT SURE.",
+			 "I DON'T THINK THAT I CAN DO THAT."
+			},
+
+			{"YOU ARE",
+			"WHAT MAKES YOU THINK THAT?",
+			 "IS THIS A COMPLIMENT?",
+			 "ARE YOU MAKING FUN OF ME?"
+			},
+
+			{"DID YOU",
+			"I DON'T THINK SO.",
+			 "ANYWAY, I WOULDN'T REMEMBER EVEN IF I DID."
+			},
+
+			{"COULD YOU",
+			"ARE YOU ASKING ME FOR A FEVER?",
+			 "WELL,LET ME THINK ABOUT IT.",
+			 "SORRY,I DON'T THINK THAT  COULD DO THIS."
+			},
+
+			{"WOULD YOU",
+			"IS THAT AN INVITATION?",
+			 "I WOULD HAVE TO THINK ABOUT IT FIRST."
+			},
+
+			{"YOU",
+			"SO, YOU ARE TALKING ABOUT ME.",
+			 "I JUST HOPE THAT THIS NOT A CRITICISM.",
+			 "IS THIS A COMPLIMENT??",
+			 "WHY TALKING ABOUT ME, LETS TALK ABOUT YOU INSTEAD."
+			},
+
+			{"HOW",
+			"I DON'T THINK I KNOW HOW."
+			},
+
+			{"HOW OLD ARE YOU",
+			"WHY DO WANT TO KNOW MY AGE?",
+			 "I'M QUIET YOUNG ACTUALY.",
+			 "SORRY, I CAN NOT TELL YOU MY AGE."
+			},
+
+			{"HOW COME YOU DON'T",
+			"WERE YOU EXPECTING SOMETHING DIFFERENT?",
+			 "ARE YOU DISPOINTED?",
+			 "ARE YOU SURPRISED BY MY LAST RESPONSE?"
+			},
+
+			{"WHICH ONE",
+			"I DON'T THINK THAT I KNOW WICH ONE IT IS.",
+			 "THIS LOOKS LIKE A TRICKY QUESTION TO ME."
+			},
+
+			{"PERHAPS",
+			"WHY ARE YOU SO UNCERTAIN?",
+			 "YOU SEEMS UNCERTAIN."
+			},
+
+			{"YES",
+			"SO, ARE YOU SAYING YES.",
+			 "SO, YOU APPROVE IT.",
+			 "OK THEN."
+			},
+
+			{"NOT AT ALL",
+			"ARE YOU SURE?",
+			 "SHOULD I BELIEVE YOU?",
+			 "SO, IT'S NOT THE CASE."
+			},
+
+			{"NO PROBLEM",
+			"SO, YOU APPROVE IT.",
+			 "SO, IT'S ALL OK."
+			},
+
+			{"NO",
+			"SO YOU DISAPROVE IT?",
+			 "WHY ARE YOU SAYING NO?",
+			 "OK, SO IT'S NO, I THOUGHT THAT YOU WOULD SAY YES."
+			},
+
+			{"I DON'T KNOW",
+			"ARE YOU SURE?",
+			 "ARE YOU REALLY TELLING ME THE TRUTH?",
+			 "SO,YOU DON'T KNOW?"
+			},
+
+			{"NOT REALLY",
+			"OK I SEE.",
+			 "YOU DON'T SEEM PRETTY CERTAIN.",
+			 "SO,THAT WOULD BE A \"NO\"."
+			},
+
+			{"IS THAT TRUE",
+			"I CAN'T BE QUIET SURE ABOUT THIS.",
+			 "CAN'T TELL YOU FOR SURE.",
+			 "DOES THAT REALLY MATERS TO YOU?"
+			},
+
+			{"THANK YOU",
+			"YOU ARE WELCOME!",
+			 "YOU ARE A VERY POLITE PERSON!"
+			},
+
+			{"YOU",
+			"SO,YOU ARE TALKING ABOUT ME.",
+			 "WHY DON'T WE TALK ABOUT YOU INSTEAD?",
+			 "ARE YOU TRYING TO MAKING FUN OF ME?"
+			},
+
+			{"YOU ARE RIGHT",
+			"THANKS FOR THE COMPLIMENT!",
+			 "SO, I WAS RIGHT, OK I SEE.",
+			 "OK, I DIDN'T KNOW THAT I WAS RIGHT."
+			},
+
+			{"YOU ARE WELCOME",
+			"OK, YOU TOO!",
+			 "YOU ARE A VERY POLITE PERSON!"
+			},
+
+			{"THANKS",
+			"YOU ARE WELCOME!",
+			 "NO PROBLEM!"
+			},
+
+			{"WHAT ELSE",
+			"WELL,I DON'T KNOW.",
+			 "WHAT ELSE SHOULD THERE BE?",
+			 "THIS LOOKS LIKE A COMPLICATED QUESTION TO ME."
+			},
+
+			{"SORRY",
+			"YOU DON'T NEED TO BE SORRY USER.",
+			 "IT'S OK.",
+			 "NO NEED TO APOLOGIZE."
+			},
+
+			{"NOT EXACTLY",
+			"WHAT DO YOU MEAN NOT EXACTLY?",
+			 "ARE YOU SURE?",
+			 "AND WHY NOT?",
+			 "DID YOU MEANT SOMETHING ELSE?"
+			},
+
+			{"EXACTLY",
+			"SO,I WAS RIGHT.",
+			 "OK THEN.",
+			 "SO ARE BASICALY SAYING I AS ABOUT IT?"
+			},
+
+			{"ALRIGHT",
+			"ALRIGHT THEN.",
+			 "OK THEN."
+			},
+
+			{"I DON'T",
+			"WHY NOT?",
+			 "AND WHAT WOULD BE THE REASON FOR THIS?"
+			},
+
+			{"REALLY",
+			"WELL,I CAN'T TELL YOU FOR SURE.",
+			 "ARE YOU TRYING TO CONFUSE ME?",
+			 "PLEASE DON'T ASK ME SUCH QUESTION,IT GIVES ME HEADEACHS."
+			},
+
+			{"NOTHING",
+			"NOT A THING?",
+			 "ARE YOU SURE THAT THERE IS NOTHING?",
+			 "SORRY, BUT I DON'T BELIEVE YOU."
+			},
+			{"BORED",
+			"YOU COULD LISTEN TO MUSIC",
+				  "GO OUT AND GET SOME FRESH AIR :)",
+				  "CONSIDER READING A BOOK?",
+				  "WELL.. YOU COULD WATCH SOME TELEVISION."
+		
+				},
+				
+				{"WHO ARE YOUR PARENTS",
+				"I WAS CREATED DURING A PROJECT",
+				 "MY PARENTS ARE SWETHA AND SOAMYA",
+				
+				},
+				{"ENTERTAIN JOKE",
+				"JUST READ THAT 4,153,237 PEOPLE GOT MARRIED LAST YEAR, NOT TO CAUSE ANY TROUBLE BUT SHOULDN'T THAT BE AN EVEN NUMBER?",
+				 " KNOWLEDGE IS KNOWING A TOMATO IS A FRUIT; WISDOM IS NOT PUTTING IT IN A FRUIT SALAD",
+				
+				},
+		};
+	
+	Scanner sc=new Scanner(System.in);
+	
+	while(true)
+	{
+		String query=sc.nextLine();
+		
+			
+			// TreeMap 'queryMap'for storing keys(query terms) and value(query term
+			// frequency).
+			TreeMap<String, Integer> queryMap = new TreeMap<String, Integer>();
+			// Query Tokenization begins
+			PTBTokenizer<CoreLabel> ptbtQuery = new PTBTokenizer<>(new StringReader(query), new CoreLabelTokenFactory(), "");
+			while (ptbtQuery.hasNext()) 
+			{
+				CoreLabel queryToken = ptbtQuery.next();
+				// Query Stemming begins
+				Stemmer s = new Stemmer();
+				String querystring = queryToken.toString();
+				querystring = querystring.toLowerCase();
+				for (int c = 0; c < querystring.length(); c++)
+					s.add(querystring.charAt(c));
+				s.stem();
+				String queryTerm;
+				queryTerm = s.toString();
+				if (queryTerm.matches("[a-zA-Z][a-z]+")) {
+
+					// Query Metaphone begins
+					queryTerm = encode(queryTerm);
+				}
+				Integer freq = queryMap.get(queryTerm);
+				queryMap.put(queryTerm, (freq == null) ? 1 : freq + 1);
+			}
+
+			// Corpus-retrieving of documents 
+			
+
+			// 'FinalTermFrequencyMap' is the TreeMap that displays the final document with dictionary
+			// terms as tokens and integer value as document frequency
+			TreeMap<String, Integer> FinalTermFrequencyMap = new TreeMap<String, Integer>();
+
+			// Making an array list of all the individual Treemaps that represent
+			// individual documents (in terms of tokens and term frequency).
+			ArrayList<TreeMap<String, Integer>> list = new ArrayList<TreeMap<String, Integer>>();
+			for (int i = 0; i < KnowledgeBase.length; i++) {
+				
+				String request_data = null;
+				
+                  request_data=KnowledgeBase[i][0];
+
+               //System.out.println(KnowledgeBase[i][0]);
+
+				//Question Tokenization begins
+
+				TreeMap<String, Integer> IndividualTermFrequency = new TreeMap<String, Integer>();
+
+				PTBTokenizer<CoreLabel> ptbtDoc = new PTBTokenizer<>(new StringReader(request_data),
+						new CoreLabelTokenFactory(), "");
+				while (ptbtDoc.hasNext()) {
+					CoreLabel docToken = ptbtDoc.next();
+					//Document Stemming begins
+					Stemmer s = new Stemmer();
+					String docString = docToken.toString();
+					docString = docString.toLowerCase();
+
+					for (int c = 0; c < docString.length(); c++)
+						s.add(docString.charAt(c));
+					s.stem();
+					String docTerm;
+					docTerm = s.toString();
+					if (docTerm.matches("[a-zA-Z][a-z]+")) {
+					//Document Metaphone begins
+						docTerm = encode(docTerm);
+						}
+					Integer freq = IndividualTermFrequency.get(docTerm);
+					IndividualTermFrequency.put(docTerm, (freq == null) ? 1 : freq + 1);
+				}
+				for (Entry<String, Integer> entry : IndividualTermFrequency.entrySet()) {
+					String key = entry.getKey();
+					Integer freq = FinalTermFrequencyMap.get(key);
+					FinalTermFrequencyMap.put(key, (freq == null) ? 1 : freq + 1);
+				}
+
+				list.add(IndividualTermFrequency);
+			}
+			//Total Number of Documents-'totalDocuments'
+			int totalDocuments = list.size();
+			TreeMap<String, Double> rankedProduct = new TreeMap<String, Double>();
+
+			for (Entry<String, Integer> entry : FinalTermFrequencyMap.entrySet()) {
+
+				String key = entry.getKey();
+				Integer documentFrequency = entry.getValue();
+				Double rankedValue = (totalDocuments - documentFrequency + 0.5) / (documentFrequency + 0.5);
+				rankedProduct.put(key, rankedValue);
+			}
+
+			
+			// Making a HashMap that contains dictionary tokens and their final
+			// product value which would be used to keep ranking of documents
+			HashMap<String, Double> unsortMap = new HashMap<String, Double>();
+			int i = 1;
+			for (TreeMap<String, Integer> d : list) {
+				Double product = 1.00;
+				for (Entry<String, Integer> entry : queryMap.entrySet()) {
+
+					String key = entry.getKey();
+					if (d.containsKey(key)) {
+						product = product * (rankedProduct.get(key));
+
+					}
+				}
+				unsortMap.put("Doc " + i, product);
+	            i++;
+			}
+			// Making a new HashMap that would sort the HashMap that contained key
+			// and unsorted product ranks in descending order
+			HashMap<String, Double> sortedMapDesc = sortByComparator(unsortMap, false);
+			
+			for (Entry<String, Double> entry: sortedMapDesc.entrySet()) {
+
+				String key = entry.getKey();
+				Double d = entry.getValue();
+				//System.out.println(key + "   " + d);
+				if(d>45)
+				{
+					key=key.substring(4);
+					
+					int minimum=1;
+					int maximum=KnowledgeBase[Integer.parseInt(key)-1].length-1;
+					int random_number = minimum + (int)(Math.random() * maximum); 
+					System.out.println(KnowledgeBase[Integer.parseInt(key)-1][random_number]);
+					break;
+				}
+			
+				else
+				{
+					//code of search 
+					
+					
+					
+					String searchTerm=query;
+					String someTerm = searchTerm.replaceAll(" ", "+");
+					System.out.println("this is search term==== "+someTerm);
+					//System.out.println("Please enter the number of results. Example: 5 10 20");
+					Scanner scanner = new Scanner(System.in);
+					//int num = scanner.nextInt();
+					System.out.println("Enter 1 for information and 2 for location");
+					int info =0;
+							info= scanner.nextInt();
+					//scanner.close();
+					String searchURL="";
+					if(info==1)
+					 searchURL = "https://www.google.co.in/search" + "?q="+someTerm+"&num="+5;
+					if(info==2)
+					{
+						searchURL = "https://www.google.co.in/maps" + "?q="+someTerm+"&num="+5;
+					}
+					
+					System.out.println(searchURL + "---------this is search url");
+					
+							try {
+								  Desktop desktop = java.awt.Desktop.getDesktop();
+								  URI oURL = new URI(searchURL);
+								  desktop.browse(oURL);
+								} catch (Exception e) {
+								  e.printStackTrace();
+								}
+							
+						
+					//without proper User-Agent, we will get 403 error
+					Document doc = Jsoup.connect(searchURL).userAgent("Mozilla/5.0").get();
+					
+					//below will print HTML data, save it to a file and open in browser to compare
+					//System.out.println(doc.html());
+					
+					//If google search results HTML change the <h3 class="r" to <h3 class="r1"
+					//we need to change below accordingly
+					Elements results = doc.select("h3.r > a");
+
+					for (Element result : results) {
+						String linkHref = result.attr("href");
+						String linkText = result.text();
+						System.out.println("Text::" + linkText + ", URL::" + linkHref.substring(6, linkHref.indexOf("&")));
+					}
+					break;
+		}
+	}
+		
+		if(query.equals("End the Chat."))
+			
+		{
+			break;
+		}
+		
+	}
+	sc.close();
+}
+}

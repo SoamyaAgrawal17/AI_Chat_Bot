@@ -9,7 +9,7 @@ public class AIChatBot {
 
     public static void main(String[] args) throws Exception {
 
-        System.out.println("HEY! Ask me something.");
+        log.info("HEY! Ask me something.");
         Scanner sc = new Scanner(System.in);
         while (true) {
             String query = sc.nextLine();
@@ -18,7 +18,7 @@ public class AIChatBot {
             }
 
             SearchEngine searchEngine = new SearchEngine();
-            System.out.println(searchEngine.searchResult(query));
+            log.info(searchEngine.searchResult(query));
         }
 
         sc.close();

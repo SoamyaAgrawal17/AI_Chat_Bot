@@ -15,9 +15,12 @@ import java.awt.*;
 import java.io.IOException;
 import java.io.StringReader;
 import java.net.URI;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Random;
 import java.util.Scanner;
 import java.util.TreeMap;
 
@@ -54,7 +57,7 @@ public class SearchEngine {
         return queryMap;
     }
 
-    String searchResult(String query) throws IOException {
+    String searchResult(String query) throws IOException, NoSuchAlgorithmException {
 
         String[][] knowledgeBase = new String[][]{
                 {"WHAT IS YOUR NAME",
@@ -219,7 +222,7 @@ public class SearchEngine {
                 {"OK",
                         "DOES THAT MEAN THAT YOU AGREE WITH ME?",
                         "SO YOU UNDERSTAND WHAT I'M SAYING.",
-                        "OK THEN."
+                        "OKAY."
                 },
 
                 {"OK THEN",
@@ -346,7 +349,7 @@ public class SearchEngine {
                 {"YES",
                         "SO, ARE YOU SAYING YES.",
                         "SO, YOU APPROVE IT.",
-                        "OK THEN."
+                        "It's a YES from your side."
                 },
 
                 {"NOT AT ALL",
@@ -367,7 +370,7 @@ public class SearchEngine {
                 },
 
                 {"I DON'T KNOW",
-                        "ARE YOU SURE?",
+                        "ARE YOU SURE THAT YOU DON'T KNOW?",
                         "ARE YOU REALLY TELLING ME THE TRUTH?",
                         "SO,YOU DON'T KNOW?"
                 },
@@ -553,16 +556,17 @@ public class SearchEngine {
 
                 int minimum = 1;
                 int maximum = knowledgeBase[Integer.parseInt(key) - 1].length - 1;
-                int randomNumber = minimum + (int) (Math.random() * maximum);
+                Random r = SecureRandom.getInstanceStrong();
+                int randomNumber = minimum + r.nextInt(maximum);
                 return (knowledgeBase[Integer.parseInt(key) - 1][randomNumber] + "\n");
             } else {
                 //code of search
 
 
                 String someTerm = query.replaceAll(" ", "+");
-                System.out.println("this is search term==== " + someTerm + "\n");
+                log.info("this is search term==== " + someTerm + "\n");
                 Scanner scanner = new Scanner(System.in);
-                System.out.println("Enter 1 for information and 2 for location \n");
+                log.info("Enter 1 for information and 2 for location \n");
                 int info = 0;
                 info = scanner.nextInt();
                 String searchURL = "";
@@ -572,7 +576,7 @@ public class SearchEngine {
                     searchURL = "https://www.google.co.in/maps" + "?q=" + someTerm + "&num=" + 5;
                 }
 
-                System.out.println(searchURL + "---------this is search url\n");
+                log.info(searchURL + "---------this is search url\n");
 
                 try {
                     Desktop desktop = java.awt.Desktop.getDesktop();
@@ -586,9 +590,6 @@ public class SearchEngine {
                 //without proper User-Agent, we will get 403 error
                 Document doc = Jsoup.connect(searchURL).userAgent("Mozilla/5.0").get();
 
-                //below will print HTML data, save it to a file and open in browser to compare
-                //System.out.println(doc.html());
-
                 //If google search results HTML change the <h3 class="r" to <h3 class="r1"
                 //we need to change below accordingly
                 Elements results = doc.select("h3.r > a");
@@ -596,7 +597,7 @@ public class SearchEngine {
                 for (Element result : results) {
                     String linkHref = result.attr("href");
                     String linkText = result.text();
-                    System.out.println("Text::" + linkText + ", URL::" + linkHref.substring(6, linkHref.indexOf("&")) + "\n");
+                    log.info("Text::" + linkText + ", URL::" + linkHref.substring(6, linkHref.indexOf('&')) + "\n");
                 }
                 break;
             }

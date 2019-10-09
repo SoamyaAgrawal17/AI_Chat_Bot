@@ -18,7 +18,7 @@ public class AIChatBot {
             }
 
             SearchEngine searchEngine = new SearchEngine();
-            log.info(searchEngine.searchResult(query));
+            log.info(searchEngine.searchResult(query, "/corpus/knowledgeBase.json"));
         }
 
         sc.close();

@@ -7,6 +7,7 @@ import java.util.Scanner;
 @Slf4j
 public class AIChatBot {
 
+    //Adding a comment
     public static void main(String[] args) throws Exception {
 
         log.info("HEY! Ask me something.");
